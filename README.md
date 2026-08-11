@@ -52,9 +52,8 @@ That's it. Greenlight auto-detects your test framework and handles everything.
 ## Free plan
 
 - 20 reviews/month
-- Public repos
 - Root cause diagnosis
-- [Upgrade to Pro](https://github.com/marketplace/pemystack) for unlimited reviews, full diagnosis, and private repos
+- [Upgrade to Pro](https://github.com/marketplace/pemystack) for unlimited reviews, full diagnosis with fix suggestions, and Slack alerts
 
 ## Inputs
 
