@@ -78,7 +78,7 @@ runs:
         PATTERN="${{ steps.detect.outputs.test_pattern }}"
         TESTS=""
         if [ -d "$TEST_PATH" ]; then
-          TESTS=$(find "$TEST_PATH" -name "$PATTERN" 2>/dev/null | sed 's|.*/||; s|\.[^.]*$//' | sort -u | tr '\n' ',' | sed 's/,$//')
+          TESTS=$(find "$TEST_PATH" -name "$PATTERN" 2>/dev/null | sed 's|.*/||' | sed 's|\.spec\..*||; s|\.test\..*||; s|\.[^.]*$||' | sort -u | tr '\n' ',' | sed 's|,$||')
         fi
         echo "tests=$TESTS" >> "$GITHUB_OUTPUT"
 
