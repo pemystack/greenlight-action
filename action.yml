@@ -42,32 +42,32 @@ runs:
           echo "framework=playwright" >> "$GITHUB_OUTPUT"
           echo "test_pattern=*.spec.*" >> "$GITHUB_OUTPUT"
           echo "test_path=tests" >> "$GITHUB_OUTPUT"
-          echo "results=test-results/junit.xml" >> "$GITHUB_OUTPUT"
+          echo "results=/tmp/greenlight-junit.xml" >> "$GITHUB_OUTPUT"
         elif [ -f "vitest.config.ts" ] || [ -f "vitest.config.js" ]; then
           echo "framework=vitest" >> "$GITHUB_OUTPUT"
           echo "test_pattern=*.test.*" >> "$GITHUB_OUTPUT"
           echo "test_path=src" >> "$GITHUB_OUTPUT"
-          echo "results=junit.xml" >> "$GITHUB_OUTPUT"
+          echo "results=/tmp/greenlight-junit.xml" >> "$GITHUB_OUTPUT"
         elif [ -f "package.json" ] && grep -q jest package.json 2>/dev/null; then
           echo "framework=jest" >> "$GITHUB_OUTPUT"
           echo "test_pattern=*.test.*" >> "$GITHUB_OUTPUT"
           echo "test_path=src" >> "$GITHUB_OUTPUT"
-          echo "results=junit.xml" >> "$GITHUB_OUTPUT"
+          echo "results=/tmp/greenlight-junit.xml" >> "$GITHUB_OUTPUT"
         elif [ -f "pyproject.toml" ] || [ -f "pytest.ini" ]; then
           echo "framework=pytest" >> "$GITHUB_OUTPUT"
           echo "test_pattern=test_*" >> "$GITHUB_OUTPUT"
           echo "test_path=tests" >> "$GITHUB_OUTPUT"
-          echo "results=junit.xml" >> "$GITHUB_OUTPUT"
+          echo "results=/tmp/greenlight-junit.xml" >> "$GITHUB_OUTPUT"
         elif [ -f "go.mod" ]; then
           echo "framework=go" >> "$GITHUB_OUTPUT"
           echo "test_pattern=*_test.go" >> "$GITHUB_OUTPUT"
           echo "test_path=." >> "$GITHUB_OUTPUT"
-          echo "results=junit.xml" >> "$GITHUB_OUTPUT"
+          echo "results=/tmp/greenlight-junit.xml" >> "$GITHUB_OUTPUT"
         else
           echo "framework=unknown" >> "$GITHUB_OUTPUT"
           echo "test_pattern=*.test.*" >> "$GITHUB_OUTPUT"
           echo "test_path=tests" >> "$GITHUB_OUTPUT"
-          echo "results=junit.xml" >> "$GITHUB_OUTPUT"
+          echo "results=/tmp/greenlight-junit.xml" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Scan test inventory
@@ -120,7 +120,7 @@ runs:
         ERROR=$(echo "$RESP" | jq -r '.error // empty')
         if [ -n "$ERROR" ]; then
           COMMENT=$(echo "$RESP" | jq -r '.comment_body // empty')
-          [ -n "$COMMENT" ] && echo "$COMMENT" | gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body-file -
+          [ -n "$COMMENT" ] && echo "$COMMENT" | bash "${{ github.action_path }}/comment.sh" "${{ github.event.pull_request.number }}" "${{ github.repository }}"
           echo "::error::Greenlight - $ERROR"
           exit 1
         fi
@@ -139,7 +139,7 @@ runs:
           BODY_TEXT+="**Suite:** $SUITE | $RATIONALE"$'\n\n'"Tests running..."
         fi
         [ -n "$UPGRADE" ] && BODY_TEXT+=$'\n\n'"$UPGRADE"
-        echo "$BODY_TEXT" | gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body-file -
+        echo "$BODY_TEXT" | bash "${{ github.action_path }}/comment.sh" "${{ github.event.pull_request.number }}" "${{ github.repository }}"
 
     - name: Install deps and run tests
       if: steps.analyze.outputs.skip != 'true'
@@ -150,21 +150,22 @@ runs:
         FW="${{ steps.detect.outputs.framework }}"
         RESULTS="${{ steps.detect.outputs.results }}"
         CLASSES="${{ steps.analyze.outputs.classes }}"
-        mkdir -p "$(dirname "$RESULTS")" 2>/dev/null || true
 
         case "$FW" in
           playwright)
             npm ci || npm install
             npx playwright install --with-deps chromium
             if [ -n "$CLASSES" ]; then
-              npx playwright test $(echo "$CLASSES" | tr ' ' '\n' | sed 's/$/.spec/') --reporter=junit > "$RESULTS" 2>&1 || true
+              SPECS=$(echo "$CLASSES" | tr ' ' '\n' | while read -r c; do find tests/ -name "${c}.spec.*" 2>/dev/null; done | tr '\n' ' ')
+              npx playwright test $SPECS --reporter=junit > "$RESULTS" 2>&1 || true
             else
               npx playwright test --reporter=junit > "$RESULTS" 2>&1 || true
             fi
             ;;
           jest)
             npm ci || npm install
-            JEST_JUNIT_OUTPUT_DIR=. JEST_JUNIT_OUTPUT_NAME=junit.xml npx jest --reporters=default --reporters=jest-junit --forceExit || true
+            npx jest --reporters=default --reporters=jest-junit --forceExit || true
+            cp junit.xml "$RESULTS" 2>/dev/null || true
             ;;
           vitest)
             npm ci || npm install
@@ -183,6 +184,9 @@ runs:
             npm test || true
             ;;
         esac
+
+        echo "Results at: $RESULTS"
+        [ -f "$RESULTS" ] && head -3 "$RESULTS" || echo "No results file found"
 
     - name: Diagnose and report
       if: steps.analyze.outputs.skip != 'true'
@@ -231,14 +235,13 @@ runs:
         if [ "$FAILED" -eq 0 ] && [ "$TOTAL" -gt 0 ]; then
           COMMENT+="All $TOTAL tests passed."
         elif [ "$FAILED" -gt 0 ]; then
-          COMMENT+="$FAILED / $TOTAL tests failed."$'\n\n'
-          [ -n "$ASSESSMENT" ] && COMMENT+="**Summary:** $ASSESSMENT"$'\n\n'
-          echo "$RESP" | jq -r '.diagnoses[]? | "**\(.test)** — \(if .likely_caused_by_pr then "caused by PR" else "pre-existing" end) (\(.confidence))\n> \(.root_cause)\n"' 2>/dev/null | while IFS= read -r line; do
-            COMMENT+="$line"$'\n'
-          done
+          COMMENT+="**$FAILED / $TOTAL tests failed.**"$'\n\n'
+          [ -n "$ASSESSMENT" ] && COMMENT+="$ASSESSMENT"$'\n\n'
+          DIAG=$(echo "$RESP" | jq -r '.diagnoses[]? | "**\(.test)** — \(if .likely_caused_by_pr then "caused by PR" else "pre-existing" end) (\(.confidence))\n> \(.root_cause)\n"' 2>/dev/null || true)
+          [ -n "$DIAG" ] && COMMENT+="$DIAG"$'\n'
         else
           COMMENT+="No test results found."
         fi
 
         [ -n "$UPGRADE" ] && COMMENT+=$'\n'"$UPGRADE"
-        echo "$COMMENT" | gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body-file -
+        echo "$COMMENT" | bash "${{ github.action_path }}/comment.sh" "${{ github.event.pull_request.number }}" "${{ github.repository }}"
