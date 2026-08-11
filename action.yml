@@ -1,5 +1,5 @@
 name: 'Pemystack Greenlight'
-description: 'AI-powered test selection, execution, and failure diagnosis for every PR. Picks the right tests, runs them, diagnoses failures.'
+description: 'AI-powered test selection, execution, and failure diagnosis for every PR.'
 author: 'Pemystack'
 
 branding:
@@ -8,7 +8,7 @@ branding:
 
 inputs:
   anthropic_api_key:
-    description: 'Anthropic API key (provide one of: anthropic, openai, or gemini)'
+    description: 'Anthropic API key (provide one of anthropic, openai, or gemini)'
     required: false
   openai_api_key:
     description: 'OpenAI API key'
@@ -19,14 +19,8 @@ inputs:
   github_token:
     description: 'GitHub token for posting PR comments and fetching diffs'
     required: true
-  test_command:
-    description: 'Custom test command (auto-detected if not set)'
-    required: false
-  results_path:
-    description: 'Path to JUnit XML results (auto-detected if not set)'
-    required: false
   force_suite:
-    description: 'Override suite type: smoke | targeted | full'
+    description: 'Override suite type (smoke, targeted, full)'
     required: false
 
 runs:
@@ -36,8 +30,7 @@ runs:
       shell: bash
       run: |
         if [[ -z "${{ inputs.anthropic_api_key }}" && -z "${{ inputs.openai_api_key }}" && -z "${{ inputs.gemini_api_key }}" ]]; then
-          echo "::error::No AI API key provided. Set one of: anthropic_api_key, openai_api_key, or gemini_api_key"
-          echo "Get a key at: console.anthropic.com, platform.openai.com, or aistudio.google.com"
+          echo "::error::No AI API key provided. Set one of anthropic_api_key, openai_api_key, or gemini_api_key."
           exit 1
         fi
 
@@ -47,46 +40,34 @@ runs:
       run: |
         if [ -f "playwright.config.ts" ] || [ -f "playwright.config.js" ]; then
           echo "framework=playwright" >> "$GITHUB_OUTPUT"
-          echo "test_cmd=npx playwright test --reporter=junit" >> "$GITHUB_OUTPUT"
-          echo "results=test-results/junit.xml" >> "$GITHUB_OUTPUT"
+          echo "test_pattern=*.spec.*" >> "$GITHUB_OUTPUT"
           echo "test_path=tests" >> "$GITHUB_OUTPUT"
-          echo "test_pattern=*.spec.{js,ts}" >> "$GITHUB_OUTPUT"
+          echo "results=test-results/junit.xml" >> "$GITHUB_OUTPUT"
         elif [ -f "vitest.config.ts" ] || [ -f "vitest.config.js" ]; then
           echo "framework=vitest" >> "$GITHUB_OUTPUT"
-          echo "test_cmd=npx vitest run --reporter=junit --outputFile=junit.xml" >> "$GITHUB_OUTPUT"
-          echo "results=junit.xml" >> "$GITHUB_OUTPUT"
+          echo "test_pattern=*.test.*" >> "$GITHUB_OUTPUT"
           echo "test_path=src" >> "$GITHUB_OUTPUT"
-          echo "test_pattern=*.test.{js,ts,jsx,tsx}" >> "$GITHUB_OUTPUT"
-        elif [ -f "package.json" ] && grep -q '"jest"' package.json 2>/dev/null; then
+          echo "results=junit.xml" >> "$GITHUB_OUTPUT"
+        elif [ -f "package.json" ] && grep -q jest package.json 2>/dev/null; then
           echo "framework=jest" >> "$GITHUB_OUTPUT"
-          echo "test_cmd=npx jest --reporters=default --reporters=jest-junit --forceExit" >> "$GITHUB_OUTPUT"
-          echo "results=junit.xml" >> "$GITHUB_OUTPUT"
+          echo "test_pattern=*.test.*" >> "$GITHUB_OUTPUT"
           echo "test_path=src" >> "$GITHUB_OUTPUT"
-          echo "test_pattern=*.test.{js,ts,jsx,tsx}" >> "$GITHUB_OUTPUT"
-        elif [ -f "pyproject.toml" ] || [ -f "pytest.ini" ] || [ -f "setup.py" ]; then
-          echo "framework=pytest" >> "$GITHUB_OUTPUT"
-          echo "test_cmd=python -m pytest --junitxml=junit.xml" >> "$GITHUB_OUTPUT"
           echo "results=junit.xml" >> "$GITHUB_OUTPUT"
+        elif [ -f "pyproject.toml" ] || [ -f "pytest.ini" ]; then
+          echo "framework=pytest" >> "$GITHUB_OUTPUT"
+          echo "test_pattern=test_*" >> "$GITHUB_OUTPUT"
           echo "test_path=tests" >> "$GITHUB_OUTPUT"
-          echo "test_pattern=test_*.py" >> "$GITHUB_OUTPUT"
+          echo "results=junit.xml" >> "$GITHUB_OUTPUT"
         elif [ -f "go.mod" ]; then
           echo "framework=go" >> "$GITHUB_OUTPUT"
-          echo "test_cmd=go test -v ./... 2>&1 | go-junit-report > junit.xml" >> "$GITHUB_OUTPUT"
-          echo "results=junit.xml" >> "$GITHUB_OUTPUT"
-          echo "test_path=." >> "$GITHUB_OUTPUT"
           echo "test_pattern=*_test.go" >> "$GITHUB_OUTPUT"
-        elif [ -d "app/src/androidTest" ]; then
-          echo "framework=android-instrumented" >> "$GITHUB_OUTPUT"
-          echo "test_cmd=./gradlew test" >> "$GITHUB_OUTPUT"
-          echo "results=build/test-results" >> "$GITHUB_OUTPUT"
-          echo "test_path=app/src/androidTest/java" >> "$GITHUB_OUTPUT"
-          echo "test_pattern=*Test.kt" >> "$GITHUB_OUTPUT"
+          echo "test_path=." >> "$GITHUB_OUTPUT"
+          echo "results=junit.xml" >> "$GITHUB_OUTPUT"
         else
           echo "framework=unknown" >> "$GITHUB_OUTPUT"
-          echo "test_cmd=npm test" >> "$GITHUB_OUTPUT"
-          echo "results=junit.xml" >> "$GITHUB_OUTPUT"
-          echo "test_path=tests" >> "$GITHUB_OUTPUT"
           echo "test_pattern=*.test.*" >> "$GITHUB_OUTPUT"
+          echo "test_path=tests" >> "$GITHUB_OUTPUT"
+          echo "results=junit.xml" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Scan test inventory
@@ -95,12 +76,11 @@ runs:
       run: |
         TEST_PATH="${{ steps.detect.outputs.test_path }}"
         PATTERN="${{ steps.detect.outputs.test_pattern }}"
+        TESTS=""
         if [ -d "$TEST_PATH" ]; then
-          TESTS=$(find "$TEST_PATH" -name "$PATTERN" 2>/dev/null | sed 's|.*/||; s|\.[^.]*$//' | sort | tr '\n' ',' | sed 's/,$//')
-          echo "tests=$TESTS" >> "$GITHUB_OUTPUT"
-        else
-          echo "tests=" >> "$GITHUB_OUTPUT"
+          TESTS=$(find "$TEST_PATH" -name "$PATTERN" 2>/dev/null | sed 's|.*/||; s|\.[^.]*$//' | sort -u | tr '\n' ',' | sed 's/,$//')
         fi
+        echo "tests=$TESTS" >> "$GITHUB_OUTPUT"
 
     - name: Fetch PR diff
       shell: bash
@@ -111,193 +91,154 @@ runs:
     - name: Analyze PR
       id: analyze
       shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        API_URL: https://api.pemystack.com
       run: |
         IFS=',' read -ra INV <<< "${{ steps.inventory.outputs.tests }}"
-        INVENTORY_JSON=$(printf '%s\n' "${INV[@]}" | jq -R . | jq -s .)
+        INV_JSON=$(printf '%s\n' "${INV[@]}" | jq -R . | jq -s .)
 
-        RESPONSE=$(curl -sf -X POST "${{ env.PEMYSTACK_API_URL || 'https://pemystack-api.vercel.app' }}/api/analyze" \
+        BODY=$(jq -n \
+          --arg diff "$(head -c 60000 /tmp/greenlight-pr.diff)" \
+          --argjson inventory "$INV_JSON" \
+          --arg framework "${{ steps.detect.outputs.framework }}" \
+          --arg repo "${{ github.repository }}" \
+          --argjson pr_number ${{ github.event.pull_request.number }} \
+          --argjson is_private ${{ github.event.repository.private }} \
+          --arg ak "${{ inputs.anthropic_api_key }}" \
+          --arg ok "${{ inputs.openai_api_key }}" \
+          --arg gk "${{ inputs.gemini_api_key }}" \
+          '{diff:$diff, test_inventory:$inventory, framework:$framework, repo:$repo, pr_number:$pr_number, is_private:$is_private, product:"greenlight", anthropic_api_key:(if $ak!="" then $ak else null end), openai_api_key:(if $ok!="" then $ok else null end), gemini_api_key:(if $gk!="" then $gk else null end)}')
+
+        RESP=$(curl -sf -X POST "$API_URL/api/analyze" \
           -H "Content-Type: application/json" \
-          -H "x-api-key: ${{ env.PEMYSTACK_API_SECRET || 'public-action-key' }}" \
-          -d "$(jq -n \
-            --arg diff "$(cat /tmp/greenlight-pr.diff | head -c 60000)" \
-            --argjson inventory "$INVENTORY_JSON" \
-            --arg framework "${{ steps.detect.outputs.framework }}" \
-            --arg repo "${{ github.repository }}" \
-            --argjson pr_number "${{ github.event.pull_request.number }}" \
-            --argjson is_private "${{ github.event.repository.private }}" \
-            --arg anthropic_key "${{ inputs.anthropic_api_key }}" \
-            --arg openai_key "${{ inputs.openai_api_key }}" \
-            --arg gemini_key "${{ inputs.gemini_api_key }}" \
-            '{
-              diff: $diff,
-              test_inventory: $inventory,
-              framework: $framework,
-              repo: $repo,
-              pr_number: $pr_number,
-              is_private: $is_private,
-              product: "greenlight",
-              anthropic_api_key: (if $anthropic_key != "" then $anthropic_key else null end),
-              openai_api_key: (if $openai_key != "" then $openai_key else null end),
-              gemini_api_key: (if $gemini_key != "" then $gemini_key else null end)
-            }')")
+          -H "x-api-key: public-action-v1" \
+          -d "$BODY" 2>&1) || RESP='{"error":"API unreachable"}'
 
-        echo "$RESPONSE" > /tmp/greenlight-analysis.json
+        echo "$RESP" > /tmp/greenlight-analysis.json
 
-        # Check for errors
-        ERROR=$(echo "$RESPONSE" | jq -r '.error // empty')
+        ERROR=$(echo "$RESP" | jq -r '.error // empty')
         if [ -n "$ERROR" ]; then
-          COMMENT=$(echo "$RESPONSE" | jq -r '.comment_body // empty')
-          if [ -n "$COMMENT" ]; then
-            gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body "$COMMENT"
-          fi
-          echo "::error::Greenlight: $ERROR"
+          COMMENT=$(echo "$RESP" | jq -r '.comment_body // empty')
+          [ -n "$COMMENT" ] && echo "$COMMENT" | gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body-file -
+          echo "::error::Greenlight - $ERROR"
           exit 1
         fi
 
-        SUITE=$(echo "$RESPONSE" | jq -r '.suite_type')
-        SKIP=$(echo "$RESPONSE" | jq -r '.skip')
-        CLASSES=$(echo "$RESPONSE" | jq -r '.test_classes_flat')
-        RATIONALE=$(echo "$RESPONSE" | jq -r '.rationale')
-        UPGRADE=$(echo "$RESPONSE" | jq -r '.upgrade_footer // empty')
+        echo "suite=$(echo "$RESP" | jq -r '.suite_type')" >> "$GITHUB_OUTPUT"
+        echo "skip=$(echo "$RESP" | jq -r '.skip')" >> "$GITHUB_OUTPUT"
+        echo "classes=$(echo "$RESP" | jq -r '.test_classes_flat')" >> "$GITHUB_OUTPUT"
 
-        echo "suite=$SUITE" >> "$GITHUB_OUTPUT"
-        echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
-        echo "classes=$CLASSES" >> "$GITHUB_OUTPUT"
-
-        # Post initial comment
-        COMMENT="## Greenlight Testing Agent\n\n"
-        if [ "$SKIP" = "true" ]; then
-          COMMENT+="⚪ **Suite:** skip\n\n$RATIONALE\n\nNo tests needed for this change."
+        RATIONALE=$(echo "$RESP" | jq -r '.rationale')
+        SUITE=$(echo "$RESP" | jq -r '.suite_type')
+        UPGRADE=$(echo "$RESP" | jq -r '.upgrade_footer // empty')
+        BODY_TEXT="## Greenlight Testing Agent"$'\n\n'
+        if [ "$SUITE" = "skip" ]; then
+          BODY_TEXT+="No tests needed. $RATIONALE"
         else
-          COMMENT+="🔵 **Suite:** $SUITE | **Selected:** ${CLASSES:-all tests}\n\n$RATIONALE\n\n⏳ Tests are running — results will appear here when complete."
+          BODY_TEXT+="**Suite:** $SUITE | $RATIONALE"$'\n\n'"Tests running..."
         fi
-        [ -n "$UPGRADE" ] && COMMENT+="\n\n$UPGRADE"
+        [ -n "$UPGRADE" ] && BODY_TEXT+=$'\n\n'"$UPGRADE"
+        echo "$BODY_TEXT" | gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body-file -
 
-        echo -e "$COMMENT" | gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body-file -
-      env:
-        GH_TOKEN: ${{ inputs.github_token }}
-
-    - name: Run tests
+    - name: Install deps and run tests
       if: steps.analyze.outputs.skip != 'true'
       id: test
       shell: bash
       continue-on-error: true
       run: |
-        TEST_CMD="${{ inputs.test_command || steps.detect.outputs.test_cmd }}"
-        RESULTS="${{ inputs.results_path || steps.detect.outputs.results }}"
+        FW="${{ steps.detect.outputs.framework }}"
+        RESULTS="${{ steps.detect.outputs.results }}"
         CLASSES="${{ steps.analyze.outputs.classes }}"
-        FRAMEWORK="${{ steps.detect.outputs.framework }}"
-
         mkdir -p "$(dirname "$RESULTS")" 2>/dev/null || true
 
-        case "$FRAMEWORK" in
+        case "$FW" in
           playwright)
+            npm ci || npm install
+            npx playwright install --with-deps chromium
             if [ -n "$CLASSES" ]; then
-              npx playwright test $(echo "$CLASSES" | tr ' ' '\n' | sed 's/$/.spec/') --reporter=junit > "$RESULTS" 2>&1
+              npx playwright test $(echo "$CLASSES" | tr ' ' '\n' | sed 's/$/.spec/') --reporter=junit > "$RESULTS" 2>&1 || true
             else
-              npx playwright test --reporter=junit > "$RESULTS" 2>&1
+              npx playwright test --reporter=junit > "$RESULTS" 2>&1 || true
             fi
             ;;
           jest)
-            JEST_JUNIT_OUTPUT_DIR=. JEST_JUNIT_OUTPUT_NAME=junit.xml $TEST_CMD
+            npm ci || npm install
+            JEST_JUNIT_OUTPUT_DIR=. JEST_JUNIT_OUTPUT_NAME=junit.xml npx jest --reporters=default --reporters=jest-junit --forceExit || true
+            ;;
+          vitest)
+            npm ci || npm install
+            npx vitest run --reporter=junit --outputFile="$RESULTS" || true
+            ;;
+          pytest)
+            pip install -r requirements.txt 2>/dev/null || pip install pytest
+            python -m pytest --junitxml="$RESULTS" || true
+            ;;
+          go)
+            go install github.com/jstemmer/go-junit-report/v2@latest
+            go test -v ./... 2>&1 | go-junit-report > "$RESULTS" || true
             ;;
           *)
-            eval "$TEST_CMD"
+            npm ci || npm install
+            npm test || true
             ;;
         esac
 
-    - name: Diagnose and post results
+    - name: Diagnose and report
       if: steps.analyze.outputs.skip != 'true'
       shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        API_URL: https://api.pemystack.com
       run: |
-        RESULTS="${{ inputs.results_path || steps.detect.outputs.results }}"
-        FAILURES="[]"
-        TOTAL=0
-        FAILED=0
-
-        # Parse JUnit XML for failures
+        RESULTS="${{ steps.detect.outputs.results }}"
+        PARSED='{"failures":[],"total":0,"failed":0}'
         if [ -f "$RESULTS" ]; then
-          TOTAL=$(grep -o 'tests="[0-9]*"' "$RESULTS" | head -1 | grep -o '[0-9]*' || echo 0)
-          FAILED=$(grep -o 'failures="[0-9]*"' "$RESULTS" | head -1 | grep -o '[0-9]*' || echo 0)
-          ERRORS=$(grep -o 'errors="[0-9]*"' "$RESULTS" | head -1 | grep -o '[0-9]*' || echo 0)
-          FAILED=$((FAILED + ERRORS))
-
-          if [ "$FAILED" -gt 0 ]; then
-            FAILURES=$(python3 -c "
-import xml.etree.ElementTree as ET, json, sys
-failures = []
-try:
-    tree = ET.parse('$RESULTS')
-    for tc in tree.iter('testcase'):
-        for fail in list(tc.findall('failure')) + list(tc.findall('error')):
-            failures.append({
-                'className': tc.get('classname', ''),
-                'testName': tc.get('name', ''),
-                'failure': (fail.text or fail.get('message', ''))[:3000]
-            })
-except: pass
-print(json.dumps(failures[:15]))
-" 2>/dev/null || echo "[]")
-          fi
+          PARSED=$(python3 "${{ github.action_path }}/parse-results.py" "$RESULTS" 2>/dev/null || echo "$PARSED")
         fi
 
-        # Call diagnose API
-        RESPONSE=$(curl -sf -X POST "${{ env.PEMYSTACK_API_URL || 'https://pemystack-api.vercel.app' }}/api/diagnose" \
-          -H "Content-Type: application/json" \
-          -H "x-api-key: ${{ env.PEMYSTACK_API_SECRET || 'public-action-key' }}" \
-          -d "$(jq -n \
-            --arg diff "$(cat /tmp/greenlight-pr.diff | head -c 40000)" \
-            --argjson failures "$FAILURES" \
-            --slurpfile analysis /tmp/greenlight-analysis.json \
-            --arg repo "${{ github.repository }}" \
-            --argjson pr_number "${{ github.event.pull_request.number }}" \
-            --arg pr_url "${{ github.event.pull_request.html_url }}" \
-            --argjson total "$TOTAL" \
-            --argjson failed "$FAILED" \
-            --arg anthropic_key "${{ inputs.anthropic_api_key }}" \
-            --arg openai_key "${{ inputs.openai_api_key }}" \
-            --arg gemini_key "${{ inputs.gemini_api_key }}" \
-            '{
-              diff: $diff,
-              failures: $failures,
-              analysis: $analysis[0],
-              repo: $repo,
-              pr_number: $pr_number,
-              pr_url: $pr_url,
-              total_tests: $total,
-              failed_tests: $failed,
-              product: "greenlight",
-              anthropic_api_key: (if $anthropic_key != "" then $anthropic_key else null end),
-              openai_api_key: (if $openai_key != "" then $openai_key else null end),
-              gemini_api_key: (if $gemini_key != "" then $gemini_key else null end)
-            }')" 2>/dev/null || echo '{"overall_assessment":"Diagnosis unavailable."}')
+        TOTAL=$(echo "$PARSED" | jq -r '.total')
+        FAILED=$(echo "$PARSED" | jq -r '.failed')
+        FAILURES=$(echo "$PARSED" | jq -c '.failures')
 
-        # Build final comment
+        BODY=$(jq -n \
+          --arg diff "$(head -c 40000 /tmp/greenlight-pr.diff)" \
+          --argjson failures "$FAILURES" \
+          --slurpfile analysis /tmp/greenlight-analysis.json \
+          --arg repo "${{ github.repository }}" \
+          --argjson pr_number ${{ github.event.pull_request.number }} \
+          --arg pr_url "${{ github.event.pull_request.html_url }}" \
+          --argjson total "$TOTAL" \
+          --argjson failed "$FAILED" \
+          --arg ak "${{ inputs.anthropic_api_key }}" \
+          --arg ok "${{ inputs.openai_api_key }}" \
+          --arg gk "${{ inputs.gemini_api_key }}" \
+          '{diff:$diff, failures:$failures, analysis:$analysis[0], repo:$repo, pr_number:$pr_number, pr_url:$pr_url, total_tests:$total, failed_tests:$failed, product:"greenlight", anthropic_api_key:(if $ak!="" then $ak else null end), openai_api_key:(if $ok!="" then $ok else null end), gemini_api_key:(if $gk!="" then $gk else null end)}')
+
+        RESP=$(curl -sf -X POST "$API_URL/api/diagnose" \
+          -H "Content-Type: application/json" \
+          -H "x-api-key: public-action-v1" \
+          -d "$BODY" 2>&1) || RESP='{"overall_assessment":"Diagnosis unavailable."}'
+
         SUITE=$(jq -r '.suite_type' /tmp/greenlight-analysis.json)
         RATIONALE=$(jq -r '.rationale' /tmp/greenlight-analysis.json)
         UPGRADE=$(jq -r '.upgrade_footer // empty' /tmp/greenlight-analysis.json)
-        ASSESSMENT=$(echo "$RESPONSE" | jq -r '.overall_assessment // empty')
+        ASSESSMENT=$(echo "$RESP" | jq -r '.overall_assessment // empty')
 
-        COMMENT="## Greenlight Testing Agent\n\n"
-        COMMENT+="**Suite:** $SUITE | $RATIONALE\n\n"
+        COMMENT="## Greenlight Testing Agent"$'\n\n'
+        COMMENT+="**Suite:** $SUITE | $RATIONALE"$'\n\n'
 
         if [ "$FAILED" -eq 0 ] && [ "$TOTAL" -gt 0 ]; then
-          COMMENT+="✅ **All $TOTAL tests passed.**\n"
+          COMMENT+="All $TOTAL tests passed."
         elif [ "$FAILED" -gt 0 ]; then
-          COMMENT+="❌ **$FAILED / $TOTAL tests failed.**\n\n"
-          [ -n "$ASSESSMENT" ] && COMMENT+="**Summary:** $ASSESSMENT\n\n"
-
-          # Add per-failure diagnosis
-          echo "$RESPONSE" | jq -r '.diagnoses[]? | "**\(.test)** — \(if .likely_caused_by_pr then "⚠️ caused by PR" else "pre-existing" end) (\(.confidence) confidence)\n> \(.root_cause)\n\(if .suggested_fix then "> **Fix:** \(.suggested_fix)\n" else "" end)"' 2>/dev/null | while read -r line; do
-            COMMENT+="$line\n"
+          COMMENT+="$FAILED / $TOTAL tests failed."$'\n\n'
+          [ -n "$ASSESSMENT" ] && COMMENT+="**Summary:** $ASSESSMENT"$'\n\n'
+          echo "$RESP" | jq -r '.diagnoses[]? | "**\(.test)** — \(if .likely_caused_by_pr then "caused by PR" else "pre-existing" end) (\(.confidence))\n> \(.root_cause)\n"' 2>/dev/null | while IFS= read -r line; do
+            COMMENT+="$line"$'\n'
           done
         else
-          COMMENT+="⚠️ No test results found.\n"
+          COMMENT+="No test results found."
         fi
 
-        [ -n "$UPGRADE" ] && COMMENT+="\n$UPGRADE"
-
-        # Update PR comment
-        echo -e "$COMMENT" | gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body-file -
-      env:
-        GH_TOKEN: ${{ inputs.github_token }}
+        [ -n "$UPGRADE" ] && COMMENT+=$'\n'"$UPGRADE"
+        echo "$COMMENT" | gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body-file -
