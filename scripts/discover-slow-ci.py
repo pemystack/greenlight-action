@@ -33,7 +33,9 @@ MIN_CI_MINUTES = 8
 MIN_STARS = 30
 MAX_STARS = 10000
 MAX_RESULTS = 10
+MAX_AUTO_POST = 3  # cap auto-posted issues per run
 SEEN_FILE = os.environ.get("SEEN_FILE", "data/discovered-repos.json")
+POSTED_FILE = os.environ.get("POSTED_FILE", "data/posted-repos.json")
 
 # Test frameworks we support
 FRAMEWORKS = ["playwright", "jest", "pytest", "cypress", "espresso", "junit"]
@@ -61,6 +63,19 @@ def _save_seen(seen: set[str]) -> None:
     os.makedirs(os.path.dirname(SEEN_FILE) or ".", exist_ok=True)
     with open(SEEN_FILE, "w") as f:
         json.dump(sorted(seen), f, indent=2)
+
+
+def _load_posted() -> set[str]:
+    if os.path.exists(POSTED_FILE):
+        with open(POSTED_FILE) as f:
+            return set(json.load(f))
+    return set()
+
+
+def _save_posted(posted: set[str]) -> None:
+    os.makedirs(os.path.dirname(POSTED_FILE) or ".", exist_ok=True)
+    with open(POSTED_FILE, "w") as f:
+        json.dump(sorted(posted), f, indent=2)
 
 
 def find_repos_with_tests(language: str, page: int = 1) -> list[dict]:
@@ -223,42 +238,116 @@ def main() -> None:
     print(f"Saved to {output_file}")
 
     if post_mode:
-        print("\n[post mode] Opening discussions/issues...")
+        posted_repos = _load_posted()
+        posted_count = 0
+        print(f"\n[post mode] Opening issues (max {MAX_AUTO_POST} per run)...")
         for d in discoveries:
-            _post_outreach(d)
-            time.sleep(5)  # be respectful
+            if d["repo"] in posted_repos:
+                print(f"  [skip] {d['repo']} — already posted")
+                continue
+            if posted_count >= MAX_AUTO_POST:
+                print(f"  [cap] Reached {MAX_AUTO_POST} posts this run, stopping")
+                break
+            success = _post_outreach(d)
+            if success:
+                posted_repos.add(d["repo"])
+                posted_count += 1
+            time.sleep(10)  # be very respectful between posts
+        _save_posted(posted_repos)
+        print(f"\nPosted to {posted_count} repos this run.")
 
 
-def _post_outreach(discovery: dict) -> None:
-    """Open a Discussion (preferred) or Issue on the target repo."""
+def _post_outreach(discovery: dict) -> bool:
+    """Open a Discussion (preferred) or Issue on the target repo. Returns True on success."""
     repo = discovery["repo"]
-    title = f"Speed up CI by 60-80% with AI test selection"
+    title = "Speed up CI by 60-80% with AI test selection"
     body = discovery["message"]
 
     # Try Discussion first (less intrusive)
-    # Check if Discussions are enabled
     repo_data = _gh(f"repos/{repo}")
-    if repo_data and repo_data.get("has_discussions"):
-        # Get discussion categories
-        cats = _gh(f"repos/{repo}/discussions/categories")
-        if cats:
-            # Find "Ideas" or "General" category
-            cat_id = None
-            for cat in cats:
-                if cat["name"].lower() in ("ideas", "general", "feedback"):
-                    cat_id = cat["id"]
-                    break
-            if cat_id:
-                # GraphQL mutation needed for discussions — skip for now
-                print(f"  [skip] {repo} has Discussions but GraphQL needed")
-                return
+    if not repo_data:
+        print(f"  ✗ Could not fetch {repo}")
+        return False
+
+    if repo_data.get("has_discussions"):
+        # Use GraphQL to create a discussion
+        success = _create_discussion(repo, title, body)
+        if success:
+            return True
+        # Fall through to issue if discussion creation fails
 
     # Fall back to Issue
     result = _gh(f"repos/{repo}/issues", method="POST", json={"title": title, "body": body})
     if result and "html_url" in result:
         print(f"  ✓ Opened issue: {result['html_url']}")
-    else:
-        print(f"  ✗ Failed to open issue on {repo}")
+        return True
+
+    print(f"  ✗ Failed to open issue on {repo}")
+    return False
+
+
+def _create_discussion(repo: str, title: str, body: str) -> bool:
+    """Create a Discussion via GraphQL. Returns True on success."""
+    owner, name = repo.split("/")
+
+    # First get the repository ID and a discussion category
+    query = """
+    query($owner: String!, $name: String!) {
+      repository(owner: $owner, name: $name) {
+        id
+        discussionCategories(first: 10) {
+          nodes { id name }
+        }
+      }
+    }
+    """
+    result = requests.post(
+        "https://api.github.com/graphql",
+        headers=HEADERS,
+        json={"query": query, "variables": {"owner": owner, "name": name}},
+    )
+    if not result.ok:
+        return False
+
+    data = result.json().get("data", {}).get("repository")
+    if not data:
+        return False
+
+    repo_id = data["id"]
+    categories = data.get("discussionCategories", {}).get("nodes", [])
+
+    # Find Ideas, General, or Feedback category
+    cat_id = None
+    for cat in categories:
+        if cat["name"].lower() in ("ideas", "general", "feedback", "show and tell"):
+            cat_id = cat["id"]
+            break
+    if not cat_id and categories:
+        cat_id = categories[0]["id"]  # use first available
+    if not cat_id:
+        return False
+
+    mutation = """
+    mutation($repoId: ID!, $catId: ID!, $title: String!, $body: String!) {
+      createDiscussion(input: {repositoryId: $repoId, categoryId: $catId, title: $title, body: $body}) {
+        discussion { url }
+      }
+    }
+    """
+    result = requests.post(
+        "https://api.github.com/graphql",
+        headers=HEADERS,
+        json={
+            "query": mutation,
+            "variables": {"repoId": repo_id, "catId": cat_id, "title": title, "body": body},
+        },
+    )
+    if result.ok:
+        url = result.json().get("data", {}).get("createDiscussion", {}).get("discussion", {}).get("url")
+        if url:
+            print(f"  ✓ Opened discussion: {url}")
+            return True
+    return False
 
 
 if __name__ == "__main__":

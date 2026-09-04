@@ -5,6 +5,11 @@ on:
     # Every Monday at 8am UTC (11am EAT)
     - cron: '0 8 * * 1'
   workflow_dispatch:
+    inputs:
+      post:
+        description: 'Auto-post outreach (capped at 3/run)'
+        type: boolean
+        default: true
 
 jobs:
   discover:
@@ -18,12 +23,18 @@ jobs:
 
       - run: pip install requests
 
-      - name: Run discovery
+      - name: Run discovery and outreach
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SEEN_FILE: data/discovered-repos.json
+          POSTED_FILE: data/posted-repos.json
           OUTPUT_FILE: data/ci-discoveries.json
-        run: python scripts/discover-slow-ci.py
+        run: |
+          POST_FLAG=""
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.post }}" = "true" ]; then
+            POST_FLAG="--post"
+          fi
+          python scripts/discover-slow-ci.py $POST_FLAG
 
       - name: Upload discoveries
         if: always()
@@ -33,10 +44,10 @@ jobs:
           path: data/ci-discoveries.json
           retention-days: 30
 
-      - name: Commit seen repos
+      - name: Commit tracking files
         run: |
           git config user.name "Ken Isiaho"
           git config user.email "kenisiaho@gmail.com"
-          git add data/discovered-repos.json || true
-          git diff --staged --quiet || git commit -m "chore: update discovered repos list [skip ci]"
+          git add data/discovered-repos.json data/posted-repos.json || true
+          git diff --staged --quiet || git commit -m "chore: update discovery tracking [skip ci]"
           git push || true
