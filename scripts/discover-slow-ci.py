@@ -140,33 +140,17 @@ def detect_test_framework(repo_full_name: str) -> str | None:
 
 
 def generate_message(repo: dict, slow_runs: list[dict], framework: str | None) -> str:
-    """Generate a personalized outreach message."""
-    repo_name = repo["full_name"]
+    """Generate a helpful, non-promotional message focused on their CI problem."""
     avg_min = round(sum(r["minutes"] for r in slow_runs) / len(slow_runs))
     max_min = max(r["minutes"] for r in slow_runs)
 
-    fw_line = ""
-    if framework:
-        fw_line = f" It supports {framework.capitalize()} out of the box."
+    fw_note = f" (detected {framework.capitalize()} in your workflows)" if framework else ""
 
-    return f"""### Speed up your CI with AI-powered test selection
+    return f"""Hi — I was looking at open-source projects with long CI times and noticed your test runs average **{avg_min} minutes** (up to {max_min} min recently){fw_note}.
 
-Hi! I noticed your CI test runs average **{avg_min} minutes** (up to {max_min} min on recent runs).
+One approach that's worked well for projects I maintain: running only the tests affected by each PR's changed files instead of the full suite. For reference, here's an open-source GitHub Action that does this: [pemystack/greenlight-action](https://github.com/pemystack/greenlight-action).
 
-[Pemystack Greenlight](https://github.com/pemystack/greenlight-action) can cut that by **60-80%** by analyzing each PR's code changes and running only the tests relevant to the diff.{fw_line}
-
-**One-line setup** — add this to your workflow:
-
-```yaml
-- uses: pemystack/greenlight-action@v1
-  with:
-    anthropic_api_key: ${{{{ secrets.ANTHROPIC_API_KEY }}}}
-    github_token: ${{{{ secrets.GITHUB_TOKEN }}}}
-```
-
-It works alongside your existing test runner — no migration needed. Free and open source.
-
-Happy to answer questions. Built by [@leader-ke](https://github.com/leader-ke), Senior QA Engineer with 10+ years in test automation.
+Not pushing anything — just flagging since long CI is one of the top contributors to slow PR review cycles. Happy to share more details on the approach if it's useful.
 """
 
 
@@ -263,7 +247,7 @@ def main() -> None:
 def _post_outreach(discovery: dict) -> bool:
     """Open a Discussion (preferred) or Issue on the target repo. Returns True on success."""
     repo = discovery["repo"]
-    title = "Speed up CI by 60-80% with AI test selection"
+    title = "CI optimization: running only affected tests per PR"
     body = discovery["message"]
 
     # Try Discussion first (less intrusive)
