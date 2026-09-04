@@ -1,0 +1,65 @@
+[
+  {
+    "repo": "openvax/mhctools",
+    "stars": 103,
+    "avg_ci_min": 15,
+    "max_ci_min": 16,
+    "framework": null,
+    "slow_runs": 7,
+    "message": "### Speed up your CI with AI-powered test selection\n\nHi! I noticed your CI test runs average **15 minutes** (up to 16 min on recent runs).\n\n[Pemystack Greenlight](https://github.com/pemystack/greenlight-action) can cut that by **60-80%** by analyzing each PR's code changes and running only the tests relevant to the diff.\n\n**One-line setup** \u2014 add this to your workflow:\n\n```yaml\n- uses: pemystack/greenlight-action@v1\n  with:\n    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}\n    github_token: ${{ secrets.GITHUB_TOKEN }}\n```\n\nIt works alongside your existing test runner \u2014 no migration needed. Free and open source.\n\nHappy to answer questions. Built by [@leader-ke](https://github.com/leader-ke), Senior QA Engineer with 10+ years in test automation.\n"
+  },
+  {
+    "repo": "octanejs/octane",
+    "stars": 1367,
+    "avg_ci_min": 10,
+    "max_ci_min": 11,
+    "framework": null,
+    "slow_runs": 2,
+    "message": "### Speed up your CI with AI-powered test selection\n\nHi! I noticed your CI test runs average **10 minutes** (up to 11 min on recent runs).\n\n[Pemystack Greenlight](https://github.com/pemystack/greenlight-action) can cut that by **60-80%** by analyzing each PR's code changes and running only the tests relevant to the diff.\n\n**One-line setup** \u2014 add this to your workflow:\n\n```yaml\n- uses: pemystack/greenlight-action@v1\n  with:\n    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}\n    github_token: ${{ secrets.GITHUB_TOKEN }}\n```\n\nIt works alongside your existing test runner \u2014 no migration needed. Free and open source.\n\nHappy to answer questions. Built by [@leader-ke](https://github.com/leader-ke), Senior QA Engineer with 10+ years in test automation.\n"
+  },
+  {
+    "repo": "nicobailon/pi-subagents",
+    "stars": 3461,
+    "avg_ci_min": 10,
+    "max_ci_min": 10,
+    "framework": null,
+    "slow_runs": 10,
+    "message": "### Speed up your CI with AI-powered test selection\n\nHi! I noticed your CI test runs average **10 minutes** (up to 10 min on recent runs).\n\n[Pemystack Greenlight](https://github.com/pemystack/greenlight-action) can cut that by **60-80%** by analyzing each PR's code changes and running only the tests relevant to the diff.\n\n**One-line setup** \u2014 add this to your workflow:\n\n```yaml\n- uses: pemystack/greenlight-action@v1\n  with:\n    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}\n    github_token: ${{ secrets.GITHUB_TOKEN }}\n```\n\nIt works alongside your existing test runner \u2014 no migration needed. Free and open source.\n\nHappy to answer questions. Built by [@leader-ke](https://github.com/leader-ke), Senior QA Engineer with 10+ years in test automation.\n"
+  },
+  {
+    "repo": "SonarSource/sonarqube-cli",
+    "stars": 273,
+    "avg_ci_min": 10,
+    "max_ci_min": 11,
+    "framework": null,
+    "slow_runs": 3,
+    "message": "### Speed up your CI with AI-powered test selection\n\nHi! I noticed your CI test runs average **10 minutes** (up to 11 min on recent runs).\n\n[Pemystack Greenlight](https://github.com/pemystack/greenlight-action) can cut that by **60-80%** by analyzing each PR's code changes and running only the tests relevant to the diff.\n\n**One-line setup** \u2014 add this to your workflow:\n\n```yaml\n- uses: pemystack/greenlight-action@v1\n  with:\n    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}\n    github_token: ${{ secrets.GITHUB_TOKEN }}\n```\n\nIt works alongside your existing test runner \u2014 no migration needed. Free and open source.\n\nHappy to answer questions. Built by [@leader-ke](https://github.com/leader-ke), Senior QA Engineer with 10+ years in test automation.\n"
+  },
+  {
+    "repo": "mqlens/mqlens-mongodb",
+    "stars": 53,
+    "avg_ci_min": 10,
+    "max_ci_min": 11,
+    "framework": null,
+    "slow_runs": 2,
+    "message": "### Speed up your CI with AI-powered test selection\n\nHi! I noticed your CI test runs average **10 minutes** (up to 11 min on recent runs).\n\n[Pemystack Greenlight](https://github.com/pemystack/greenlight-action) can cut that by **60-80%** by analyzing each PR's code changes and running only the tests relevant to the diff.\n\n**One-line setup** \u2014 add this to your workflow:\n\n```yaml\n- uses: pemystack/greenlight-action@v1\n  with:\n    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}\n    github_token: ${{ secrets.GITHUB_TOKEN }}\n```\n\nIt works alongside your existing test runner \u2014 no migration needed. Free and open source.\n\nHappy to answer questions. Built by [@leader-ke](https://github.com/leader-ke), Senior QA Engineer with 10+ years in test automation.\n"
+  },
+  {
+    "repo": "southleft/story-ui",
+    "stars": 200,
+    "avg_ci_min": 8,
+    "max_ci_min": 8,
+    "framework": null,
+    "slow_runs": 1,
+    "message": "### Speed up your CI with AI-powered test selection\n\nHi! I noticed your CI test runs average **8 minutes** (up to 8 min on recent runs).\n\n[Pemystack Greenlight](https://github.com/pemystack/greenlight-action) can cut that by **60-80%** by analyzing each PR's code changes and running only the tests relevant to the diff.\n\n**One-line setup** \u2014 add this to your workflow:\n\n```yaml\n- uses: pemystack/greenlight-action@v1\n  with:\n    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}\n    github_token: ${{ secrets.GITHUB_TOKEN }}\n```\n\nIt works alongside your existing test runner \u2014 no migration needed. Free and open source.\n\nHappy to answer questions. Built by [@leader-ke](https://github.com/leader-ke), Senior QA Engineer with 10+ years in test automation.\n"
+  },
+  {
+    "repo": "tokentimerch/tokentimer-core",
+    "stars": 43,
+    "avg_ci_min": 14,
+    "max_ci_min": 14,
+    "framework": null,
+    "slow_runs": 2,
+    "message": "### Speed up your CI with AI-powered test selection\n\nHi! I noticed your CI test runs average **14 minutes** (up to 14 min on recent runs).\n\n[Pemystack Greenlight](https://github.com/pemystack/greenlight-action) can cut that by **60-80%** by analyzing each PR's code changes and running only the tests relevant to the diff.\n\n**One-line setup** \u2014 add this to your workflow:\n\n```yaml\n- uses: pemystack/greenlight-action@v1\n  with:\n    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}\n    github_token: ${{ secrets.GITHUB_TOKEN }}\n```\n\nIt works alongside your existing test runner \u2014 no migration needed. Free and open source.\n\nHappy to answer questions. Built by [@leader-ke](https://github.com/leader-ke), Senior QA Engineer with 10+ years in test automation.\n"
+  }
+]

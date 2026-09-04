@@ -1,0 +1,42 @@
+name: CI Discovery Bot
+
+on:
+  schedule:
+    # Every Monday at 8am UTC (11am EAT)
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install requests
+
+      - name: Run discovery
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SEEN_FILE: data/discovered-repos.json
+          OUTPUT_FILE: data/ci-discoveries.json
+        run: python scripts/discover-slow-ci.py
+
+      - name: Upload discoveries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-discoveries
+          path: data/ci-discoveries.json
+          retention-days: 30
+
+      - name: Commit seen repos
+        run: |
+          git config user.name "Ken Isiaho"
+          git config user.email "kenisiaho@gmail.com"
+          git add data/discovered-repos.json || true
+          git diff --staged --quiet || git commit -m "chore: update discovered repos list [skip ci]"
+          git push || true

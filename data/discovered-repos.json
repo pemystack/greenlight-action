@@ -1,0 +1,9 @@
+[
+  "SonarSource/sonarqube-cli",
+  "mqlens/mqlens-mongodb",
+  "nicobailon/pi-subagents",
+  "octanejs/octane",
+  "openvax/mhctools",
+  "southleft/story-ui",
+  "tokentimerch/tokentimer-core"
+]
