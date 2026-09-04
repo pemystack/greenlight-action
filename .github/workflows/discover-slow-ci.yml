@@ -25,7 +25,9 @@ jobs:
 
       - name: Run discovery and outreach
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # OUTREACH_PAT needs public_repo scope to create issues on other repos.
+          # Falls back to GITHUB_TOKEN (discovery only, no posting).
+          GITHUB_TOKEN: ${{ secrets.OUTREACH_PAT || secrets.GITHUB_TOKEN }}
           SEEN_FILE: data/discovered-repos.json
           POSTED_FILE: data/posted-repos.json
           OUTPUT_FILE: data/ci-discoveries.json

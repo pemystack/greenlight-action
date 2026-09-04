@@ -248,10 +248,13 @@ def main() -> None:
             if posted_count >= MAX_AUTO_POST:
                 print(f"  [cap] Reached {MAX_AUTO_POST} posts this run, stopping")
                 break
-            success = _post_outreach(d)
-            if success:
-                posted_repos.add(d["repo"])
-                posted_count += 1
+            try:
+                success = _post_outreach(d)
+                if success:
+                    posted_repos.add(d["repo"])
+                    posted_count += 1
+            except Exception as exc:  # noqa: BLE001
+                print(f"  ✗ Error posting to {d['repo']}: {exc}")
             time.sleep(10)  # be very respectful between posts
         _save_posted(posted_repos)
         print(f"\nPosted to {posted_count} repos this run.")
